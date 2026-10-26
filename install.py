@@ -33,7 +33,7 @@ def install(source,target,upgrade=False):
         if not upgrade:
             raise FileExistsError('different installation preserved; use --upgrade to back it up and replace the skill')
         # Data in a legacy skill directory must never be moved out from under a running client.
-        if any((target/name).exists() for name in ('downloads','transfers','library','config.json','.quark-download.json')):
+        if any((target/name).exists() for name in ('downloads','transfers','library','config.json','.quark-download.json','.qfetch.json')):
             raise ValueError('installation contains runtime data; move/stop it explicitly before upgrading')
     target.parent.mkdir(parents=True,exist_ok=True)
     stage=Path(tempfile.mkdtemp(prefix='.quark-skill-',dir=target.parent)); backup=None

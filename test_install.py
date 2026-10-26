@@ -46,6 +46,15 @@ class Installation(unittest.TestCase):
             install.install(self.src,self.target,True)
         self.assertEqual((self.target/'.quark-download.json').read_text(),'{}')
 
+    def test_current_download_data_prevents_upgrade(self):
+        install.install(self.src,self.target)
+        (self.target/'.qfetch.json').write_text('{"fid":"test"}')
+        (self.target/'example.bin.part').write_bytes(b'keep')
+        (self.src/'SKILL.md').write_text('version two')
+        with self.assertRaisesRegex(ValueError,'runtime data'):
+            install.install(self.src,self.target,True)
+        self.assertEqual((self.target/'example.bin.part').read_bytes(),b'keep')
+
     def test_custom_codex_home(self):
         with patch.dict(os.environ,{'CODEX_HOME':str(self.root/'custom')}):
             self.assertEqual(install.default_target(),self.root/'custom/skills/qfetch')

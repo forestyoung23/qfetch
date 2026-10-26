@@ -1,3 +1,4 @@
+# Reference template; not an active GitHub Actions workflow.
 name: tests
 on: [push, pull_request, workflow_dispatch]
 jobs:
