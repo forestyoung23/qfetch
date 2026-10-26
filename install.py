@@ -10,7 +10,7 @@ import uuid
 
 
 def default_target():
-    return Path(os.environ.get('CODEX_HOME') or Path.home()/'.codex')/'skills/single-movie-pilot'
+    return Path(os.environ.get('CODEX_HOME') or Path.home()/'.codex')/'skills/qfetch'
 
 
 def inventory(root):
@@ -20,7 +20,7 @@ def inventory(root):
 
 def install(source,target,upgrade=False):
     source=source.resolve(strict=True); target=target.expanduser().absolute()
-    if not (source/'SKILL.md').is_file() or not (source/'movie_manager.py').is_file():
+    if not (source/'SKILL.md').is_file() or not (source/'download.py').is_file():
         raise ValueError('bundled skill is incomplete')
     if target.is_symlink():
         raise ValueError('refusing to replace a symbolic-link installation')
@@ -33,10 +33,10 @@ def install(source,target,upgrade=False):
         if not upgrade:
             raise FileExistsError('different installation preserved; use --upgrade to back it up and replace the skill')
         # Data in a legacy skill directory must never be moved out from under a running client.
-        if any((target/name).exists() for name in ('downloads','transfers','library','config.json')):
+        if any((target/name).exists() for name in ('downloads','transfers','library','config.json','.quark-download.json')):
             raise ValueError('installation contains runtime data; move/stop it explicitly before upgrading')
     target.parent.mkdir(parents=True,exist_ok=True)
-    stage=Path(tempfile.mkdtemp(prefix='.movie-skill-',dir=target.parent)); backup=None
+    stage=Path(tempfile.mkdtemp(prefix='.quark-skill-',dir=target.parent)); backup=None
     try:
         staged=stage/'skill'
         shutil.copytree(source,staged,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
@@ -63,6 +63,6 @@ if __name__=='__main__':
     p.add_argument('--upgrade',action='store_true')
     a=p.parse_args()
     try:
-        print(json.dumps(install(Path(__file__).resolve().parent/'skills/single-movie-pilot',a.target,a.upgrade),ensure_ascii=False,indent=2))
+        print(json.dumps(install(Path(__file__).resolve().parent/'skills/qfetch',a.target,a.upgrade),ensure_ascii=False,indent=2))
     except (OSError,ValueError) as e:
         p.exit(2,str(e)+'\n')

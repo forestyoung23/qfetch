@@ -10,8 +10,8 @@ class Installation(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name); self.src=self.root/'source'; self.src.mkdir()
-        (self.src/'SKILL.md').write_text('version one'); (self.src/'movie_manager.py').write_text('# entry')
-        self.target=self.root/'agent/skills/single-movie-pilot'
+        (self.src/'SKILL.md').write_text('version one'); (self.src/'download.py').write_text('# entry')
+        self.target=self.root/'agent/skills/qfetch'
 
     def test_fresh_and_repeat_install(self):
         self.assertEqual(install.install(self.src,self.target)['status'],'installed')
@@ -38,9 +38,17 @@ class Installation(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'runtime data'): install.install(self.src,self.target,True)
         self.assertTrue((self.target/'downloads').is_dir())
 
+    def test_task_record_prevents_upgrade(self):
+        install.install(self.src,self.target)
+        (self.target/'.quark-download.json').write_text('{}')
+        (self.src/'SKILL.md').write_text('version two')
+        with self.assertRaisesRegex(ValueError,'runtime data'):
+            install.install(self.src,self.target,True)
+        self.assertEqual((self.target/'.quark-download.json').read_text(),'{}')
+
     def test_custom_codex_home(self):
         with patch.dict(os.environ,{'CODEX_HOME':str(self.root/'custom')}):
-            self.assertEqual(install.default_target(),self.root/'custom/skills/single-movie-pilot')
+            self.assertEqual(install.default_target(),self.root/'custom/skills/qfetch')
 
     def test_symlink_installation_is_preserved(self):
         self.target.parent.mkdir(parents=True); self.target.symlink_to(self.src,target_is_directory=True)
@@ -56,7 +64,7 @@ class Installation(unittest.TestCase):
         install.install(self.src,self.target); (self.src/'SKILL.md').write_text('version two')
         rename=Path.rename
         def fail_activation(path,destination):
-            if path.name=='skill' and path.parent.name.startswith('.movie-skill-'):
+            if path.name=='skill' and path.parent.name.startswith('.quark-skill-'):
                 raise OSError('simulated activation failure')
             return rename(path,destination)
         with patch.object(Path,'rename',fail_activation):
