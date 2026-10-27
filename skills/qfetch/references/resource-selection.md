@@ -57,3 +57,69 @@
 | 4K MKV 18GB、4K MP4 9GB | 下载4K MP4，遵守10GB取舍 |
 | 只有合格4K MP4 9GB | 可提前结束并下载，不等待MKV |
 | 只有不符合用户要求的版本 | 继续查找；预算结束仍无合格候选则不下载 |
+
+
+## 候选记录与本地选择
+
+默认视频选择使用 `select_resource.py`，将本轮候选写入技能目录之外的 `candidates.json`。脚本只验证字段并按上述规则选择，不联网、不验证页面、不转存或下载，也不检查磁盘空间。用户指定具体文件、非默认分辨率或其他选择偏好时，由Agent按明确要求处理，不套用此默认选择器。
+
+记录必须区分来源页宣称与文件核验结果：
+
+```json
+{
+  "search_complete": false,
+  "candidates": [
+    {
+      "id": "candidate-1",
+      "source_page": "https://example.org/movie",
+      "filename": "Movie.2024.2160p.WEB-DL.mkv",
+      "claims": {"resolution": "4K", "subtitles": "中字"},
+      "evidence": {
+        "identity": "分享文件列表中的片名与年份匹配",
+        "resolution": "完整文件名标记2160p，未验证实际视频流",
+        "size": "官方元数据返回精确字节数",
+        "requirements": "完整正片及本次要求已核验；填写具体证据",
+        "source": "来源正文与分享文件列表一致",
+        "compatibility": "记录已核验属性和重要未知项，不宣称播放已验证"
+      },
+      "requirements_met": true,
+      "resolution": 2160,
+      "size_bytes": 9000000000,
+      "size_kind": "exact",
+      "source_confidence": 2,
+      "compatibility_confidence": 1,
+      "rejection_reason": ""
+    }
+  ]
+}
+```
+
+模板仅示范格式，必须替换为现场证据。`claims`记录页面宣传，`evidence`记录核验依据；脚本不读取这两个说明字段判断真实性，也不从标题自动推断合格。字段含义：
+
+| 字段 | 填写要求 |
+|---|---|
+| `id` | 本轮唯一候选标识；输入顺序为首次核验顺序 |
+| `source_page`、`filename` | 可公开引用的来源页及完整文件名，不记录凭据、提取码或签名URL |
+| `requirements_met` | 作品身份、完整正片及用户硬性要求全部核验通过才为`true`；错片、枪版、要求未知等填`false`，在`rejection_reason`中说明 |
+| `resolution` | 已按文件信息确认的垂直分辨率整数；未知为`null`。默认仅1080、1440、2160参与选择 |
+| `size_kind`、`size_bytes` | `exact`为精确正整数字节；`upper_bound`为有依据的保守上界字节，说明换算依据；`unknown`必须为`null`。不能把约数当精确值；约数无法确定上界时用`unknown`。上界超过10GB不能证明实际文件超过10GB，按大小不确定的分支处理 |
+| `source_confidence` | 0：来源或质量证据不足；1：已核验文件列表及必要属性；2：来源正文与文件信息交叉一致且质量依据更完整。在`evidence.source`解释，不按站点名或宣传加分 |
+| `compatibility_confidence` | 0：未核验非硬性字幕／设备条件；1：部分已核验；2：相关条件均有依据。在`evidence.compatibility`解释；硬性要求未知仍须令`requirements_met=false` |
+| `duplicate_of` | 仅已确认同一文件时填写另一候选的`id`，指向非重复的主记录。主记录汇总核验证据；相似名称、相同大小不足以自动认定重复 |
+
+字幕、HDR、音轨、编码可写入`claims`和`evidence`；不作为独立加分项。不适用的兼容属性无需强行补查，同条件使用相同等级。
+
+运行：
+
+```bash
+python3 "$SKILL_DIR/select_resource.py" /任务目录/candidates.json
+```
+
+- `search_complete=false`：默认继续原预算内检索；只有发现核验通过且可确认≤10GB的2160p时允许提前选择。
+- `search_complete=true`：仅当达到原检索预算或已满足前述自然结束条件时设置。页面访问失败、授权等待和操作受阻不能当作自然结束；选择器不会自行检查预算或外部状态。
+- `selected`：按`selected_id`定位原记录，结合`reason`说明选择理由，再检查原任务、转存和磁盘空间。`size_exact=false`表示大小未精确核验；只有`exact`大小可传给`download.py prepare --size`，不得把`upper_bound`作为精确大小传入。
+- `continue_search`：保留候选，在剩余预算内补查；不提交下载。
+- `no_match`：本轮结束但无合格候选，报告未找到。
+- `needs_attention`：输入字段不合法，修正记录，不绕过校验。
+
+结果同时返回`eligible_count`及`excluded`，分别表示去重后的合格候选数、被排除候选及原因；选择成功还返回`unknown_size_ids`。同档按来源可信度、兼容核验完整度、大小和输入顺序依次取舍；大小未知不当作更小文件。`selected`只表示输入记录满足选择规则，不证明分享、内容、磁盘或下载已验证。
