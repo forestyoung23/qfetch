@@ -28,7 +28,7 @@ python3 install.py --check
 
 - [Google检索与预算](skills/qfetch/references/web-search.md)：检索入口、超时恢复与候选核验。
 - [资源选择](skills/qfetch/references/resource-selection.md)：分辨率、体积、MKV偏好与`select_resource.py`输入。
-- [客户端流程](skills/qfetch/references/client-workflow.md)：能力自检、窗口恢复、下载操作及停滞判定。
+- [客户端流程](skills/qfetch/references/client-workflow.md)：下载操作、窗口处理及停滞判定。
 - [本地检查](skills/qfetch/references/local-checks.md)：`prepare`、`status`、`check`及完成标准。
 
 ## 验证与边界
