@@ -2,6 +2,8 @@
 """Local task/file checks for Agent-operated Quark client downloads; no network or UI control."""
 import argparse
 import json
+import os
+import tempfile
 from pathlib import Path
 import shutil
 
@@ -71,8 +73,17 @@ def prepare(path, filename, size, source):
         raise ValueError('web downloader partial file preserved; this helper only follows client tasks')
     record = folder / TASK
     existing = record.exists() or record.is_symlink()
-    if existing and read_task(folder) != task:
-        raise ValueError('directory belongs to another task; preserve it and inspect')
+    updated = False
+    if existing:
+        previous = read_task(folder)
+        if any(previous[key] != task[key] for key in ('version', 'filename', 'source')):
+            raise ValueError('directory belongs to another task; preserve it and inspect')
+        if previous['size_bytes'] is not None:
+            if size is not None and size != previous['size_bytes']:
+                raise ValueError('exact size conflicts with existing task; preserve it and inspect')
+            task['size_bytes'] = size = previous['size_bytes']
+        else:
+            updated = size is not None
     result = snapshot(folder, task)
     free = shutil.disk_usage(folder).free
     if result['status'] == 'pending' and free < (size or 0) + MARGIN:
@@ -80,9 +91,22 @@ def prepare(path, filename, size, source):
     if not existing:
         with record.open('x', encoding='utf-8') as handle:
             json.dump(task, handle, ensure_ascii=False)
+    if updated:
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=folder,
+                                             prefix='.qfetch-', suffix='.tmp', delete=False) as handle:
+                temporary = Path(handle.name)
+                json.dump(task, handle, ensure_ascii=False)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, record)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
     if result['status'] == 'pending' and not existing and not result['temporary_files']:
         result['status'] = 'ready'
-    return dict(result, existing_task=existing, free_bytes=free)
+    return dict(result, existing_task=existing, metadata_updated=updated, free_bytes=free)
 
 
 def status(path):

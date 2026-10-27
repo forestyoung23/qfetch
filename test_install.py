@@ -17,6 +17,23 @@ class Installation(unittest.TestCase):
         self.assertEqual(install.install(self.src,self.target)['status'],'installed')
         self.assertEqual(install.install(self.src,self.target)['status'],'already_installed')
 
+    def test_read_only_consistency_check_reports_file_differences(self):
+        self.assertEqual(install.check_installation(self.src, self.target)['status'], 'not_installed')
+        self.assertFalse(self.target.parent.exists())
+        install.install(self.src, self.target)
+        result = install.check_installation(self.src, self.target)
+        self.assertEqual(result['status'], 'in_sync')
+        self.assertEqual(result['source_fingerprint'], result['installed_fingerprint'])
+        (self.target/'SKILL.md').write_text('old')
+        (self.target/'download.py').unlink()
+        (self.target/'extra.txt').write_text('keep')
+        result = install.check_installation(self.src, self.target)
+        self.assertEqual(result['status'], 'out_of_sync')
+        self.assertEqual(result['changed'], ['SKILL.md'])
+        self.assertEqual(result['missing'], ['download.py'])
+        self.assertEqual(result['extra'], ['extra.txt'])
+        self.assertEqual((self.target/'extra.txt').read_text(), 'keep')
+
     def test_conflict_preserves_original(self):
         install.install(self.src,self.target); (self.src/'SKILL.md').write_text('version two')
         with self.assertRaises(FileExistsError): install.install(self.src,self.target)

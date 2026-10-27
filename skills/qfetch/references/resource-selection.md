@@ -122,4 +122,4 @@ python3 "$SKILL_DIR/select_resource.py" /任务目录/candidates.json
 - `no_match`：本轮结束但无合格候选，报告未找到。
 - `needs_attention`：输入字段不合法，修正记录，不绕过校验。
 
-结果同时返回`eligible_count`及`excluded`，分别表示去重后的合格候选数、被排除候选及原因；选择成功还返回`unknown_size_ids`。同档按来源可信度、兼容核验完整度、大小和输入顺序依次取舍；大小未知不当作更小文件。`selected`只表示输入记录满足选择规则，不证明分享、内容、磁盘或下载已验证。
+结果同时返回`eligible_count`及`excluded`，分别表示去重后的合格候选数、被排除候选及原因；选择成功还返回`unknown_size_ids`。同档按来源可信度、兼容核验完整度、大小、实际文件名的MKV扩展名（不区分大小写）和输入顺序依次取舍；大小未知不当作更小文件。`selected`只表示输入记录满足选择规则，不证明分享、内容、磁盘或下载已验证。

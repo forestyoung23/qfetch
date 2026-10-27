@@ -101,6 +101,15 @@ class ResourceSelection(unittest.TestCase):
             with self.subTest(expected=expected, first=first):
                 self.assertEqual(selector.select_resource([first, second], True)['selected_id'], expected)
 
+    def test_mkv_tiebreak_is_case_insensitive_and_after_size_and_quality(self):
+        mp4 = candidate('mp4', filename='movie.mp4')
+        mkv = candidate('mkv', filename='movie.MKV')
+        for values in ([mp4, mkv], [mkv, mp4]):
+            self.assertEqual(selector.select_resource(values, True)['selected_id'], 'mkv')
+        for change in (dict(size_bytes=9_000_000_001), dict(source_confidence=1),
+                       dict(compatibility_confidence=1), dict(resolution=1080)):
+            self.assertEqual(selector.select_resource([mp4, dict(mkv, **change)], True)['selected_id'], 'mp4')
+
     def test_empty_results_distinguish_pending_from_exhausted(self):
         self.assertEqual(selector.select_resource([])['status'], 'continue_search')
         self.assertEqual(selector.select_resource([], True)['status'], 'no_match')

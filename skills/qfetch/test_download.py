@@ -148,6 +148,32 @@ class LocalChecks(unittest.TestCase):
         self.assertFalse(completed['size_verified'])
         self.assertEqual(completed['actual_bytes'], 10)
 
+    def test_size_can_be_enriched_and_omission_preserves_known_size(self):
+        download.prepare(self.folder, self.file.name, None, self.source)
+        self.file.write_bytes(b'0123456789')
+        self.assertTrue(self.prepare()['metadata_updated'])
+        self.assertTrue(download.check(self.folder, True)['size_verified'])
+        result = download.prepare(self.folder, self.file.name, None, self.source)
+        self.assertEqual(result['expected_bytes'], 10)
+        self.assertFalse(result['metadata_updated'])
+        with self.assertRaisesRegex(ValueError, 'conflicts'):
+            download.prepare(self.folder, self.file.name, 11, self.source)
+
+    def test_failed_size_enrichment_preserves_record(self):
+        download.prepare(self.folder, self.file.name, None, self.source)
+        record = self.folder/download.TASK
+        saved = record.read_bytes()
+        self.file.write_bytes(b'wrong')
+        with self.assertRaisesRegex(ValueError, 'differs'):
+            self.prepare()
+        self.assertEqual(record.read_bytes(), saved)
+        self.file.unlink()
+        with patch('download.os.replace', side_effect=OSError('write failed')):
+            with self.assertRaises(OSError):
+                self.prepare()
+        self.assertEqual(record.read_bytes(), saved)
+        self.assertEqual(list(self.folder.iterdir()), [record])
+
     def test_known_size_completion_reports_verification(self):
         self.prepare()
         self.file.write_bytes(b'0123456789')

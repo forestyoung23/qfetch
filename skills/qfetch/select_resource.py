@@ -12,7 +12,8 @@ def tie_key(candidate):
     # Unknown size is not evidence that a file is smaller.
     size = candidate['size_bytes']
     return (-candidate['source_confidence'], -candidate['compatibility_confidence'],
-            size if size is not None else float('inf'))
+            size if size is not None else float('inf'),
+            Path(candidate['filename']).suffix.lower() != '.mkv')
 
 
 def select_resource(candidates, search_complete=False):

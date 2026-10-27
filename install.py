@@ -2,6 +2,7 @@
 """Install or explicitly upgrade the bundled skill; runtime data stays separate."""
 import argparse
 import datetime
+import hashlib
 import os
 from pathlib import Path
 import shutil
@@ -16,6 +17,31 @@ def default_target():
 def inventory(root):
     return {p.relative_to(root):p for p in root.rglob('*')
             if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.pyc'}
+
+
+def check_installation(source, target):
+    """Compare installed files without installing, upgrading or creating directories."""
+    source = source.resolve(strict=True)
+    target = target.expanduser().absolute()
+    if target.is_symlink() or (target.exists() and not target.is_dir()):
+        raise ValueError('installation must be a regular directory')
+    expected = inventory(source)
+    actual = inventory(target) if target.exists() else {}
+    def hashes(files):
+        return {str(key): hashlib.sha256(path.read_bytes()).hexdigest()
+                for key, path in sorted(files.items())}
+    wanted, found = hashes(expected), hashes(actual)
+    def fingerprint(values):
+        import json
+        return hashlib.sha256(json.dumps(values, sort_keys=True).encode()).hexdigest()
+    missing = sorted(wanted.keys() - found.keys())
+    extra = sorted(found.keys() - wanted.keys())
+    changed = sorted(key for key in wanted.keys() & found.keys() if wanted[key] != found[key])
+    return {'status': ('not_installed' if not target.exists() else
+                       'in_sync' if not (missing or extra or changed) else 'out_of_sync'),
+            'target': str(target), 'source_fingerprint': fingerprint(wanted),
+            'installed_fingerprint': fingerprint(found) if target.exists() else None,
+            'missing': missing, 'extra': extra, 'changed': changed}
 
 
 def install(source,target,upgrade=False):
@@ -60,9 +86,15 @@ if __name__=='__main__':
     import json
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--target',type=Path,default=default_target())
-    p.add_argument('--upgrade',action='store_true')
+    mode=p.add_mutually_exclusive_group()
+    mode.add_argument('--upgrade',action='store_true')
+    mode.add_argument('--check',action='store_true',help='read-only installation consistency check')
     a=p.parse_args()
     try:
-        print(json.dumps(install(Path(__file__).resolve().parent/'skills/qfetch',a.target,a.upgrade),ensure_ascii=False,indent=2))
+        source=Path(__file__).resolve().parent/'skills/qfetch'
+        result=check_installation(source,a.target) if a.check else install(source,a.target,a.upgrade)
+        print(json.dumps(result,ensure_ascii=False,indent=2))
+        if a.check and result['status'] != 'in_sync':
+            raise SystemExit(1)
     except (OSError,ValueError) as e:
         p.exit(2,str(e)+'\n')
